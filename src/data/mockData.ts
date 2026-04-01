@@ -63,3 +63,8 @@ export const faqData = [
   { q: 'Is there a contract or commitment?', a: 'No contracts! You can start with the free Starter plan and upgrade anytime. Cancel whenever you want.' },
   { q: 'How do I deliver vouchers to customers?', a: 'You can print vouchers, share via WhatsApp, send via SMS, or let customers see the code on screen at point of sale.' },
 ];
+export const locations = [
+  { id: '1', name: 'Main Shop', city: 'Arusha', address: 'Plot 45, Nyerere Road', status: 'online' as const, routerModel: 'MikroTik RB951', ip: '192.168.88.1', uptime: '12d 4h 23m', activeClients: 8, signal: 4 },
+  { id: '2', name: 'Upstairs Flat', city: 'Arusha', address: 'Plot 45, Nyerere Road, 2nd Floor', status: 'online' as const, routerModel: 'MikroTik hAP ac2', ip: '192.168.89.1', uptime: '3d 1h 45m', activeClients: 2, signal: 3 },
+  { id: '3', name: 'Mwanza Branch', city: 'Mwanza', address: 'Liberty Street, Bldg 3', status: 'offline' as const, routerModel: 'MikroTik RB4011', ip: '10.0.0.1', uptime: '0m', activeClients: 0, signal: 0 },
+];

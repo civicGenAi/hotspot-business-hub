@@ -12,6 +12,10 @@ import QuickSell from "./pages/QuickSell";
 import Vouchers from "./pages/Vouchers";
 import Sessions from "./pages/Sessions";
 import Analytics from "./pages/Analytics";
+import Locations from "./pages/Locations";
+import Portal from "./pages/Portal";
+import Billing from "./pages/Billing";
+import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -32,6 +36,10 @@ const App = () => (
             <Route path="vouchers" element={<Vouchers />} />
             <Route path="sessions" element={<Sessions />} />
             <Route path="analytics" element={<Analytics />} />
+            <Route path="locations" element={<Locations />} />
+            <Route path="portal" element={<Portal />} />
+            <Route path="billing" element={<Billing />} />
+            <Route path="settings" element={<Settings />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
