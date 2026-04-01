@@ -1,7 +1,11 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, Copy, Share2, Printer, MessageSquare, X, Wifi, QrCode } from 'lucide-react';
-import { plans } from '@/data/mockData';
+import { Check, Copy, Share2, Printer, MessageSquare, X, Wifi, QrCode, Loader2 } from 'lucide-react';
+import { usePlans } from '@/hooks/useSupabaseData';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/lib/supabase';
+import { useQueryClient, useMutation } from '@tanstack/react-query';
+import { toast } from 'sonner';
 
 const QuickSell = () => {
   const [selectedPlan, setSelectedPlan] = useState('');
@@ -11,10 +15,38 @@ const QuickSell = () => {
   const [generatedCode, setGeneratedCode] = useState('');
   const [copied, setCopied] = useState(false);
 
+  const { tenant } = useAuth();
+  const queryClient = useQueryClient();
+  const { data: plans = [], isLoading } = usePlans();
+
+  const sellMutation = useMutation({
+    mutationFn: async () => {
+      if (!tenant) throw new Error("No tenant found");
+      const { data, error } = await supabase.functions.invoke('sell-voucher', {
+        body: {
+          tenant_id: tenant.id,
+          plan_id: selectedPlan,
+          payment_method: paymentMethod,
+          phone: phone
+        }
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      setGeneratedCode(data.code);
+      setShowSuccess(true);
+      queryClient.invalidateQueries({ queryKey: ['vouchers'] });
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      toast.success("Voucher sold!");
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Failed to sell voucher");
+    }
+  });
+
   const handleSell = () => {
-    const code = `HH-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
-    setGeneratedCode(code);
-    setShowSuccess(true);
+    sellMutation.mutate();
   };
 
   const handleCopy = () => {
@@ -23,7 +55,7 @@ const QuickSell = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const plan = plans.find(p => p.id === selectedPlan);
+  const plan = plans.find((p: any) => p.id === selectedPlan);
 
   return (
     <div className="max-w-lg mx-auto space-y-6">
@@ -36,7 +68,7 @@ const QuickSell = () => {
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
         <p className="text-sm font-medium text-foreground mb-3">Select Plan</p>
         <div className="grid grid-cols-2 gap-3">
-          {plans.map(p => (
+          {plans.map((p: any) => (
             <button
               key={p.id}
               onClick={() => setSelectedPlan(p.id)}
@@ -46,9 +78,9 @@ const QuickSell = () => {
             >
               {selectedPlan === p.id && <Check className="w-4 h-4 text-primary absolute top-2 right-2" />}
               <p className="font-display font-bold text-foreground text-sm">{p.name}</p>
-              <p className="text-muted-foreground text-xs mt-1">{p.duration} · {p.data}</p>
-              <p className="text-muted-foreground text-xs">{p.speed}</p>
-              <p className="font-display font-bold text-primary text-lg mt-2">TZS {p.price.toLocaleString()}</p>
+              <p className="text-muted-foreground text-xs mt-1">{p.duration_minutes} min · {p.data_limit_mb} MB</p>
+              <p className="text-muted-foreground text-xs">{p.speed_limit_mbps} Mbps</p>
+              <p className="font-display font-bold text-primary text-lg mt-2">TZS {(p.price_tzs || 0).toLocaleString()}</p>
             </button>
           ))}
         </div>
@@ -86,14 +118,18 @@ const QuickSell = () => {
       {/* Sell button */}
       <motion.button
         onClick={handleSell}
-        disabled={!selectedPlan}
-        className="w-full gradient-bg text-primary-foreground py-4 rounded-xl font-display font-bold text-lg hover:opacity-90 transition-all hover:scale-[1.02] disabled:opacity-50 disabled:hover:scale-100"
+        disabled={!selectedPlan || sellMutation.isPending}
+        className="w-full gradient-bg text-primary-foreground py-4 rounded-xl font-display font-bold text-lg hover:opacity-90 transition-all hover:scale-[1.02] disabled:opacity-50 disabled:hover:scale-100 flex items-center justify-center gap-2"
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.4 }}
         whileTap={{ scale: 0.98 }}
       >
-        Sell Now {plan ? `— TZS ${plan.price.toLocaleString()}` : ''}
+        {sellMutation.isPending ? (
+          <Loader2 className="w-6 h-6 animate-spin" />
+        ) : (
+          `Sell Now — TZS ${plan ? (plan.price_tzs || 0).toLocaleString() : ''}`
+        )}
       </motion.button>
 
       {/* Success overlay */}
@@ -139,15 +175,15 @@ const QuickSell = () => {
                 </div>
                 <div className="p-3 rounded-lg bg-muted/20">
                   <p className="text-muted-foreground text-xs">Price</p>
-                  <p className="text-foreground font-medium">TZS {plan.price.toLocaleString()}</p>
+                  <p className="text-foreground font-medium">TZS {(plan.price_tzs || 0).toLocaleString()}</p>
                 </div>
                 <div className="p-3 rounded-lg bg-muted/20">
                   <p className="text-muted-foreground text-xs">Duration</p>
-                  <p className="text-foreground font-medium">{plan.duration}</p>
+                  <p className="text-foreground font-medium">{plan.duration_minutes} min</p>
                 </div>
                 <div className="p-3 rounded-lg bg-muted/20">
                   <p className="text-muted-foreground text-xs">Data</p>
-                  <p className="text-foreground font-medium">{plan.data}</p>
+                  <p className="text-foreground font-medium">{plan.data_limit_mb} MB</p>
                 </div>
               </div>
 

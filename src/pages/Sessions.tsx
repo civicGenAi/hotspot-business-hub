@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Smartphone, Laptop, Wifi, X as XIcon, Clock, Activity } from 'lucide-react';
-import { sessions } from '@/data/mockData';
+import { useSessions } from '@/hooks/useSupabaseData';
 
 const deviceIcons: Record<string, React.ComponentType<any>> = {
   smartphone: Smartphone,
@@ -16,9 +16,11 @@ const formatTime = (seconds: number) => {
 };
 
 const Sessions = () => {
+  const { data: sessions = [], isLoading } = useSessions();
   const [time, setTime] = useState(0);
-  const activeSessions = sessions.filter(s => s.status === 'active');
-  const expiredSessions = sessions.filter(s => s.status === 'expired');
+
+  const activeSessions = sessions.filter((s: any) => !s.ended_at);
+  const expiredSessions = sessions.filter((s: any) => s.ended_at);
 
   useEffect(() => {
     const interval = setInterval(() => setTime(t => t + 1), 1000);
@@ -49,9 +51,13 @@ const Sessions = () => {
         <h3 className="font-display font-bold text-foreground mb-3">Active Sessions</h3>
         <div className="grid md:grid-cols-2 gap-4">
           {activeSessions.map((s, i) => {
-            const DeviceIcon = deviceIcons[s.deviceType] || Wifi;
-            const remaining = Math.max(0, s.timeRemaining - time);
-            const dataPercent = (s.dataUsed / s.dataLimit) * 100;
+            const DeviceIcon = deviceIcons[s.device_type] || Wifi;
+            // Note: In real app, timeRemaining would be s.expires_at - now()
+            const expiresAt = s.expires_at ? new Date(s.expires_at).getTime() : 0;
+            const now = new Date().getTime();
+            const remaining = Math.max(0, Math.floor((expiresAt - now) / 1000));
+            const dataLimit = (s.voucher as any)?.plan?.data_limit_mb || 1000;
+            const dataPercent = (s.data_used_mb / dataLimit) * 100;
 
             return (
               <motion.div
@@ -79,11 +85,11 @@ const Sessions = () => {
                 <div className="grid grid-cols-2 gap-3 mb-3">
                   <div>
                     <p className="text-xs text-muted-foreground">Plan</p>
-                    <p className="text-sm font-medium text-foreground">{s.plan}</p>
+                    <p className="text-sm font-medium text-foreground">{s.planName || 'Standard'}</p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Voucher</p>
-                    <p className="text-sm font-mono text-muted-foreground">{s.voucher.slice(0, 7)}****</p>
+                    <p className="text-sm font-mono text-muted-foreground">{s.voucherCode?.slice(0, 7)}****</p>
                   </div>
                 </div>
 
@@ -99,7 +105,7 @@ const Sessions = () => {
                 <div>
                   <div className="flex justify-between text-xs mb-1">
                     <span className="text-muted-foreground">Data Used</span>
-                    <span className="text-foreground">{s.dataUsed}MB / {s.dataLimit}MB</span>
+                    <span className="text-foreground">{s.data_used_mb}MB / {dataLimit}MB</span>
                   </div>
                   <div className="w-full h-2 rounded-full bg-muted/30 overflow-hidden">
                     <motion.div
@@ -133,8 +139,8 @@ const Sessions = () => {
         <div>
           <h3 className="font-display font-bold text-foreground mb-3">Recent History</h3>
           <div className="space-y-2">
-            {expiredSessions.map((s, i) => {
-              const DeviceIcon = deviceIcons[s.deviceType] || Wifi;
+            {expiredSessions.map((s: any, i: number) => {
+              const DeviceIcon = deviceIcons[s.device_type] || Wifi;
               return (
                 <motion.div
                   key={s.id}
@@ -145,8 +151,8 @@ const Sessions = () => {
                 >
                   <DeviceIcon className="w-5 h-5 text-muted-foreground" />
                   <div className="flex-1">
-                    <p className="text-sm text-foreground">{s.device}</p>
-                    <p className="text-xs text-muted-foreground">{s.plan} · {s.startedAt}</p>
+                    <p className="text-sm text-foreground">{s.mac_address}</p>
+                    <p className="text-xs text-muted-foreground">{s.planName} · {new Date(s.started_at).toLocaleString()}</p>
                   </div>
                   <span className="text-xs px-2.5 py-1 rounded-full bg-muted text-muted-foreground">Expired</span>
                 </motion.div>

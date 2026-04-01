@@ -1,7 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Ticket, Search, Copy, Share2, Ban, Plus, Filter } from 'lucide-react';
-import { vouchers, plans } from '@/data/mockData';
+import { Ticket, Search, Copy, Share2, Ban, Plus, Filter, Loader2 } from 'lucide-react';
+import { usePlans, useVouchers } from '@/hooks/useSupabaseData';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/lib/supabase';
+import { useQueryClient, useMutation } from '@tanstack/react-query';
+import { toast } from 'sonner';
 
 const statusColors: Record<string, string> = {
   active: 'bg-success/20 text-success',
@@ -15,9 +19,50 @@ const Vouchers = () => {
   const [tab, setTab] = useState<'plans' | 'generate' | 'all'>('all');
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
+  
+  // Generation State
+  const [genPlanId, setGenPlanId] = useState('');
+  const [genQuantity, setGenQuantity] = useState(10);
+  const [genPrefix, setGenPrefix] = useState('');
 
-  const filtered = vouchers.filter(v => {
-    if (filter !== 'all' && v.status !== filter) return false;
+  const { tenant } = useAuth();
+  const queryClient = useQueryClient();
+
+  const { data: plans = [], isLoading: plansLoading } = usePlans();
+  const { data: vouchers = [], isLoading: vouchersLoading } = useVouchers(filter);
+
+  // Set default plan for generation when plans load
+  useEffect(() => {
+    if (plans.length > 0 && !genPlanId) {
+      setGenPlanId(plans[0].id);
+    }
+  }, [plans, genPlanId]);
+
+  const generateMutation = useMutation({
+    mutationFn: async () => {
+      if (!tenant) throw new Error("No tenant found");
+      const { data, error } = await supabase.functions.invoke('generate-vouchers', {
+        body: {
+          tenant_id: tenant.id,
+          plan_id: genPlanId,
+          quantity: genQuantity,
+          prefix: genPrefix,
+        }
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      toast.success("Vouchers generated successfully!");
+      queryClient.invalidateQueries({ queryKey: ['vouchers'] });
+      setTab('all');
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Failed to generate vouchers");
+    }
+  });
+
+  const filtered = vouchers.filter((v: any) => {
     if (search && !v.code.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
@@ -67,8 +112,8 @@ const Vouchers = () => {
                 </div>
               </div>
               <div className="space-y-1 text-sm text-muted-foreground mb-4">
-                <p>{p.duration} · {p.data} · {p.speed}</p>
-                <p className="font-display font-bold text-primary text-lg">TZS {p.price.toLocaleString()}</p>
+                <p>{p.duration_minutes} min · {p.data_limit_mb}MB · {p.speed_limit_mbps} Mbps</p>
+                <p className="font-display font-bold text-primary text-lg">TZS {(p.price_tzs || 0).toLocaleString()}</p>
               </div>
               <div className="grid grid-cols-3 gap-2 text-center">
                 <div className="p-2 rounded-lg bg-muted/20">
@@ -159,23 +204,48 @@ const Vouchers = () => {
           <div className="space-y-4">
             <div>
               <label className="text-sm font-medium text-foreground mb-1.5 block">Select Plan</label>
-              <select className="input-dark w-full">
-                {plans.map(p => <option key={p.id} value={p.id}>{p.name} — TZS {p.price.toLocaleString()}</option>)}
+              <select 
+                value={genPlanId} 
+                onChange={e => setGenPlanId(e.target.value)}
+                className="input-dark w-full"
+              >
+                {plans.map((p: any) => <option key={p.id} value={p.id}>{p.name} — TZS {(p.price_tzs || 0).toLocaleString()}</option>)}
               </select>
             </div>
             <div>
               <label className="text-sm font-medium text-foreground mb-1.5 block">Quantity</label>
               <div className="flex items-center gap-3">
-                <button className="w-10 h-10 rounded-lg border border-white/10 text-foreground font-bold hover:bg-muted/30 transition-all">−</button>
-                <input type="number" defaultValue={10} className="input-dark w-20 text-center" />
-                <button className="w-10 h-10 rounded-lg border border-white/10 text-foreground font-bold hover:bg-muted/30 transition-all">+</button>
+                <button 
+                  onClick={() => setGenQuantity(q => Math.max(1, q - 1))}
+                  className="w-10 h-10 rounded-lg border border-white/10 text-foreground font-bold hover:bg-muted/30 transition-all">−
+                </button>
+                <input 
+                  type="number" 
+                  value={genQuantity} 
+                  onChange={e => setGenQuantity(parseInt(e.target.value) || 1)}
+                  className="input-dark w-20 text-center" 
+                />
+                <button 
+                  onClick={() => setGenQuantity(q => q + 1)}
+                  className="w-10 h-10 rounded-lg border border-white/10 text-foreground font-bold hover:bg-muted/30 transition-all">+
+                </button>
               </div>
             </div>
             <div>
               <label className="text-sm font-medium text-foreground mb-1.5 block">Code Prefix (optional)</label>
-              <input placeholder="e.g. VIP-" className="input-dark w-full" />
+              <input 
+                value={genPrefix}
+                onChange={e => setGenPrefix(e.target.value)}
+                placeholder="e.g. VIP-" 
+                className="input-dark w-full" 
+              />
             </div>
-            <button className="w-full gradient-bg text-primary-foreground py-3 rounded-xl font-display font-semibold hover:opacity-90 transition-all">
+            <button 
+              onClick={() => generateMutation.mutate()}
+              disabled={generateMutation.isPending || !genPlanId}
+              className="w-full gradient-bg text-primary-foreground py-3 rounded-xl font-display font-semibold hover:opacity-90 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {generateMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
               Generate Vouchers
             </button>
           </div>

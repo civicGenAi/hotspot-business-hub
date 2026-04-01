@@ -3,16 +3,35 @@ import { motion } from 'framer-motion';
 import { Wifi, Eye, EyeOff } from 'lucide-react';
 import { GradientOrbs } from '@/components/GradientOrbs';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from '@/lib/supabase';
+import { toast } from 'sonner';
 
 const Login = () => {
   const [showPass, setShowPass] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    navigate('/dashboard');
+    setLoading(true);
+
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) throw error;
+
+      toast.success("Welcome back!");
+      navigate('/dashboard');
+    } catch (error: any) {
+      toast.error(error.message || "Invalid login credentials");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -82,8 +101,16 @@ const Login = () => {
               <a href="/forgot-password" className="text-sm text-primary hover:underline">Forgot password?</a>
             </div>
 
-            <button type="submit" className="w-full gradient-bg text-primary-foreground py-3 rounded-xl font-display font-semibold hover:opacity-90 transition-all hover:scale-[1.02]">
-              Sign In
+            <button 
+              type="submit" 
+              disabled={loading}
+              className="w-full gradient-bg text-primary-foreground py-3 rounded-xl font-display font-semibold hover:opacity-90 transition-all hover:scale-[1.02] disabled:opacity-50 disabled:scale-100 flex items-center justify-center gap-2"
+            >
+              {loading ? (
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                'Sign In'
+              )}
             </button>
           </form>
 

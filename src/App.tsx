@@ -17,6 +17,7 @@ import Portal from "./pages/Portal";
 import Billing from "./pages/Billing";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
+import { AuthGuard } from "./components/AuthGuard";
 
 const queryClient = new QueryClient();
 
@@ -30,7 +31,14 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
-          <Route path="/dashboard" element={<DashboardLayout />}>
+          <Route 
+            path="/dashboard" 
+            element={
+              <AuthGuard>
+                <DashboardLayout />
+              </AuthGuard>
+            }
+          >
             <Route index element={<DashboardHome />} />
             <Route path="quick-sell" element={<QuickSell />} />
             <Route path="vouchers" element={<Vouchers />} />

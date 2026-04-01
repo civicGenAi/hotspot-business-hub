@@ -1,9 +1,10 @@
 import { motion } from 'framer-motion';
 import { DollarSign, Users, Ticket, TrendingUp, Zap, Plus, Activity, Router, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { AnimatedCounter } from '@/components/AnimatedCounter';
-import { revenueData, transactions, sessions } from '@/data/mockData';
+import { useSessions, useTransactions, useVouchers } from '@/hooks/useSupabaseData';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts';
 import { useNavigate } from 'react-router-dom';
+import { revenueData } from '@/data/mockData'; // Keeping for chart trend until more historical data exists
 
 const kpis = [
   { label: 'Today\'s Revenue', value: 45000, prefix: 'TZS ', trend: 12, up: true, icon: DollarSign, color: 'text-primary' },
@@ -23,6 +24,30 @@ const DashboardHome = () => {
   const navigate = useNavigate();
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+
+  const { data: sessions = [] } = useSessions();
+  const { data: transactions = [] } = useTransactions();
+  const { data: vouchers = [] } = useVouchers('all');
+
+  const activeSessionsCount = sessions.filter((s: any) => !s.ended_at).length;
+  const todayRevenue = transactions
+    .filter((t: any) => {
+        const date = new Date(t.created_at);
+        const today = new Date();
+        return date.getDate() === today.getDate() && 
+               date.getMonth() === today.getMonth() && 
+               date.getFullYear() === today.getFullYear();
+    })
+    .reduce((acc: number, t: any) => acc + (t.amount_tzs || 0), 0);
+
+  const monthlyRevenue = transactions.reduce((acc: number, t: any) => acc + (t.amount_tzs || 0), 0);
+
+  const kpis = [
+    { label: 'Today\'s Revenue', value: todayRevenue, prefix: 'TZS ', trend: 0, up: true, icon: DollarSign, color: 'text-primary' },
+    { label: 'Active Sessions', value: activeSessionsCount, trend: 0, up: true, icon: Users, color: 'text-success', live: true },
+    { label: 'Vouchers Sold', value: vouchers.filter((v: any) => v.status === 'sold' || v.status === 'active').length, trend: 0, up: true, icon: Ticket, color: 'text-warning' },
+    { label: 'Monthly Revenue', value: monthlyRevenue, prefix: 'TZS ', trend: 0, up: true, icon: TrendingUp, color: 'text-secondary' },
+  ];
 
   return (
     <div className="space-y-6">
@@ -151,13 +176,18 @@ const DashboardHome = () => {
                   <Ticket className="w-4 h-4 text-primary" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-foreground">{t.plan}</p>
-                  <p className="text-xs text-muted-foreground">{t.time} · {t.method === 'mpesa' ? 'M-Pesa' : t.method === 'airtel' ? 'Airtel' : 'Cash'}</p>
+                  <p className="text-sm font-medium text-foreground">{t.planName || 'Standard Plan'}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {new Date(t.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · {t.payment_method || 'M-Pesa'}
+                  </p>
                 </div>
               </div>
-              <span className="font-mono text-sm font-semibold text-success">+TZS {t.amount.toLocaleString()}</span>
+              <span className="font-mono text-sm font-semibold text-success">+TZS {(t.amount_tzs || 0).toLocaleString()}</span>
             </motion.div>
           ))}
+          {transactions.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-4">No recent sales yet.</p>
+          )}
         </div>
       </motion.div>
     </div>

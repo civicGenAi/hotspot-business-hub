@@ -1,8 +1,18 @@
 import { motion } from 'framer-motion';
-import { MapPin, Router, Activity, Signal, Plus, MoreVertical, Globe, HardDrive } from 'lucide-react';
-import { locations } from '@/data/mockData';
+import { MapPin, Router, Activity, Signal, Plus, MoreVertical, Globe, HardDrive, Loader2 } from 'lucide-react';
+import { useLocations } from '@/hooks/useSupabaseData';
 
 const Locations = () => {
+  const { data: locations = [], isLoading } = useLocations();
+
+  if (isLoading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <Loader2 className="w-8 h-8 text-primary animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <motion.div 
@@ -20,7 +30,14 @@ const Locations = () => {
       </motion.div>
 
       <div className="grid gap-4">
-        {locations.map((loc, i) => (
+        {locations.length === 0 && (
+          <div className="glass-card p-12 text-center border-dashed">
+            <Router className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+            <h3 className="font-display font-bold text-foreground">No Routers Connected</h3>
+            <p className="text-muted-foreground text-sm mt-1">Add your first MikroTik router to start selling vouchers.</p>
+          </div>
+        )}
+        {locations.map((loc: any, i) => (
           <motion.div
             key={loc.id}
             className="glass-card p-5 gradient-border relative overflow-hidden group"
@@ -55,38 +72,38 @@ const Locations = () => {
                 <div>
                   <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1 font-semibold">Status</p>
                   <p className={`text-sm font-bold capitalize ${loc.status === 'online' ? 'text-success' : 'text-destructive'}`}>
-                    {loc.status}
+                    {loc.status || 'Offline'}
                   </p>
                 </div>
                 <div>
                   <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1 font-semibold">Active Clients</p>
                   <div className="flex items-center gap-2">
                     <Activity className="w-3 h-3 text-primary" />
-                    <p className="text-sm font-bold text-foreground">{loc.activeClients}</p>
+                    <p className="text-sm font-bold text-foreground">0</p>
                   </div>
                 </div>
                 <div>
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1 font-semibold">Uptime</p>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1 font-semibold">Last Seen</p>
                   <div className="flex items-center gap-2">
                     <ClockIcon className="w-3 h-3 text-secondary" />
-                    <p className="text-sm font-bold text-foreground">{loc.uptime}</p>
+                    <p className="text-sm font-bold text-foreground truncate">{loc.last_seen_at ? new Date(loc.last_seen_at).toLocaleTimeString() : 'Never'}</p>
                   </div>
                 </div>
                 <div>
                   <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1 font-semibold">Model</p>
-                  <p className="text-sm font-bold text-foreground truncate">{loc.routerModel}</p>
+                  <p className="text-sm font-bold text-foreground truncate">{loc.router_model || 'Generic'}</p>
                 </div>
               </div>
 
               {/* Network Details */}
               <div className="flex items-center gap-4">
                 <div className="text-right hidden sm:block">
-                  <p className="text-xs font-mono text-muted-foreground">{loc.ip}</p>
+                  <p className="text-xs font-mono text-muted-foreground">{loc.router_ip}</p>
                   <div className="flex justify-end gap-0.5 mt-1">
                     {[1, 2, 3, 4].map((step) => (
                       <div 
                         key={step} 
-                        className={`w-1 h-3 rounded-full ${step <= loc.signal ? 'bg-primary' : 'bg-white/10'}`} 
+                        className={`w-1 h-3 rounded-full ${step <= 3 ? 'bg-primary' : 'bg-white/10'}`} 
                       />
                     ))}
                   </div>

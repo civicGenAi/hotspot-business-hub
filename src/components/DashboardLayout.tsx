@@ -6,6 +6,9 @@ import {
   Settings, Bell, ChevronLeft, LogOut, Wifi, Menu, X,
   CreditCard, Layout, FileText, MessageSquare, HelpCircle, MoreHorizontal
 } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/lib/supabase';
+import { toast } from 'sonner';
 
 const navItems = [
   { section: 'OVERVIEW', items: [{ icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' }] },
@@ -36,11 +39,26 @@ const mobileNav = [
 ];
 
 const DashboardLayout = () => {
+  const { user, tenant } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const currentPath = location.pathname;
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    toast.success("Signed out successfully");
+    navigate('/login');
+  };
+
+  const getInitials = (name: string) => {
+    return name.split(' ').filter(Boolean).map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  };
+
+  const userDisplayName = tenant?.business_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User';
+  const userInitials = getInitials(userDisplayName);
+  const planLabel = tenant?.plan ? (tenant.plan.charAt(0).toUpperCase() + tenant.plan.slice(1) + ' Plan') : 'Free Plan';
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -98,15 +116,21 @@ const DashboardLayout = () => {
 
         <div className="p-3 border-t border-white/5">
           <div className="flex items-center gap-3 px-2">
-            <div className="w-8 h-8 rounded-full gradient-bg flex items-center justify-center text-primary-foreground text-xs font-bold shrink-0">MN</div>
+            <div className="w-8 h-8 rounded-full gradient-bg flex items-center justify-center text-primary-foreground text-xs font-bold shrink-0">
+              {userInitials}
+            </div>
             {!collapsed && (
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-foreground truncate">Mama Ntilie</p>
-                <p className="text-[10px] text-primary">Pro Plan</p>
+                <p className="text-sm font-medium text-foreground truncate">{userDisplayName}</p>
+                <p className="text-[10px] text-primary">{planLabel}</p>
               </div>
             )}
             {!collapsed && (
-              <button onClick={() => navigate('/login')} className="text-muted-foreground hover:text-foreground">
+              <button 
+                onClick={handleSignOut} 
+                className="text-muted-foreground hover:text-foreground p-1 transition-colors"
+                title="Sign Out"
+              >
                 <LogOut className="w-4 h-4" />
               </button>
             )}
@@ -130,7 +154,9 @@ const DashboardLayout = () => {
             <Bell className="w-5 h-5" />
             <span className="absolute -top-1 -right-1 w-4 h-4 gradient-bg rounded-full text-[10px] text-primary-foreground flex items-center justify-center font-bold">4</span>
           </button>
-          <div className="w-8 h-8 rounded-full gradient-bg flex items-center justify-center text-primary-foreground text-xs font-bold">MN</div>
+          <div className="w-8 h-8 rounded-full gradient-bg flex items-center justify-center text-primary-foreground text-xs font-bold">
+            {userInitials}
+          </div>
         </header>
 
         {/* Page content */}

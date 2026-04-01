@@ -1,4 +1,7 @@
+import { useEffect } from 'react';
 import { Wifi } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
 import { HeroSection } from '@/components/landing/HeroSection';
 import { SocialProofBar } from '@/components/landing/SocialProofBar';
 import { HowItWorks } from '@/components/landing/HowItWorks';
@@ -27,8 +30,18 @@ const LandingNav = () => (
   </nav>
 );
 
-const Index = () => (
-  <div className="min-h-screen bg-background">
+const Index = () => {
+  const { user, loading } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!loading && user) {
+      navigate('/dashboard');
+    }
+  }, [user, loading, navigate]);
+
+  return (
+    <div className="min-h-screen bg-background">
     <LandingNav />
     <HeroSection />
     <SocialProofBar />
@@ -38,7 +51,8 @@ const Index = () => (
     <TestimonialsSection />
     <FAQSection />
     <Footer />
-  </div>
-);
+    </div>
+  );
+};
 
 export default Index;

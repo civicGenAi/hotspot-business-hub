@@ -1,12 +1,65 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Layout, Smartphone, Palette, Type, Image as ImageIcon, Settings, Save, Eye, CheckCircle2, Wifi } from 'lucide-react';
+import { Layout, Smartphone, Palette, Type, Image as ImageIcon, Settings, Save, Eye, CheckCircle2, Wifi, Loader2 } from 'lucide-react';
+import { usePortal } from '@/hooks/useSupabaseData';
+import { supabase } from '@/lib/supabase';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 
 const Portal = () => {
-  const [businessName, setBusinessName] = useState('Mama Ntilie Wi-Fi');
-  const [welcomeMsg, setWelcomeMsg] = useState('Welcome to our hotspot! Enjoy high-speed internet while you dine.');
+  const { data: portal, isLoading } = usePortal();
+  const queryClient = useQueryClient();
+
+  const [businessName, setBusinessName] = useState('Hotspot Wi-Fi');
+  const [welcomeMsg, setWelcomeMsg] = useState('Welcome to our hotspot!');
   const [accentColor, setAccentColor] = useState('hsl(186 100% 45%)');
   const [showTerms, setShowTerms] = useState(true);
+
+  useEffect(() => {
+    if (portal) {
+      setBusinessName(portal.business_name || '');
+      setWelcomeMsg(portal.welcome_message || '');
+      setAccentColor(portal.accent_color || 'hsl(186 100% 45%)');
+      setShowTerms(portal.require_terms || false);
+    }
+  }, [portal]);
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("No user found");
+
+      const { data: tenant } = await supabase.from('tenants').select('id').eq('owner_id', user.id).single();
+      if (!tenant) throw new Error("No tenant found");
+
+      const { error } = await supabase
+        .from('portals')
+        .upsert({
+          tenant_id: tenant.id,
+          business_name: businessName,
+          welcome_message: welcomeMsg,
+          accent_color: accentColor,
+          require_terms: showTerms,
+        }, { onConflict: 'tenant_id' });
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Portal settings saved!");
+      queryClient.invalidateQueries({ queryKey: ['portal'] });
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Failed to save settings");
+    }
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <Loader2 className="w-8 h-8 text-primary animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -19,8 +72,13 @@ const Portal = () => {
           <h1 className="font-display text-2xl font-bold text-foreground">Captive Portal</h1>
           <p className="text-muted-foreground text-sm mt-1">Customize your Wi-Fi login experience</p>
         </div>
-        <button className="gradient-bg text-primary-foreground px-4 py-2 rounded-xl font-display font-semibold text-sm flex items-center gap-2 hover:opacity-90 transition-all shadow-lg shadow-primary/20">
-          <Save className="w-4 h-4" /> Save Changes
+        <button 
+          onClick={() => saveMutation.mutate()}
+          disabled={saveMutation.isPending}
+          className="gradient-bg text-primary-foreground px-4 py-2 rounded-xl font-display font-semibold text-sm flex items-center gap-2 hover:opacity-90 transition-all shadow-lg shadow-primary/20 disabled:opacity-50"
+        >
+          {saveMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+          Save Changes
         </button>
       </motion.div>
 

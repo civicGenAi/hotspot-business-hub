@@ -3,12 +3,27 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Wifi, Eye, EyeOff, Check, ChevronRight, ChevronLeft, Router, Circle } from 'lucide-react';
 import { GradientOrbs } from '@/components/GradientOrbs';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from '@/lib/supabase';
+import { toast } from 'sonner';
 
 const steps = ['Account', 'Business', 'Router', 'Plan'];
 
 const Register = () => {
   const [step, setStep] = useState(0);
   const [showPass, setShowPass] = useState(false);
+  const [loading, setLoading] = useState(false);
+  
+  // Form State
+  const [formData, setFormData] = useState({
+    fullName: '',
+    email: '',
+    phone: '',
+    password: '',
+    businessName: '',
+    country: 'Tanzania',
+    city: '',
+  });
+
   const [selectedRouter, setSelectedRouter] = useState('');
   const [selectedPlan, setSelectedPlan] = useState('starter');
   const navigate = useNavigate();
@@ -26,7 +41,56 @@ const Register = () => {
     { id: 'business', name: 'Business', price: 'TZS 75,000/mo', desc: 'Unlimited everything' },
   ];
 
-  const handleFinish = () => navigate('/dashboard');
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleFinish = async () => {
+    setLoading(true);
+    try {
+      // 1. Sign up user
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          data: {
+            full_name: formData.fullName,
+          }
+        }
+      });
+
+      if (authError) throw authError;
+      if (!authData.user) throw new Error("Registration failed");
+
+      // 2. Initialise tenant via Edge Function
+      // Calling 'create-tenant' edge function
+      const { error: funcError } = await supabase.functions.invoke('create-tenant', {
+        body: {
+          user_id: authData.user.id,
+          business_name: formData.businessName,
+          city: formData.city,
+          country: formData.country,
+          plan: selectedPlan,
+          phone: formData.phone
+        }
+      });
+
+      if (funcError) {
+        console.error("Edge function error:", funcError);
+        // We continue anyway if auth succeeded, but warn
+        toast.warning("Account created, but tenant initialization had an issue. Please contact support.");
+      } else {
+        toast.success("Account created successfully!");
+      }
+
+      navigate('/dashboard');
+    } catch (error: any) {
+      toast.error(error.message || "An error occurred during registration");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4 relative overflow-hidden noise-overlay">
@@ -64,20 +128,20 @@ const Register = () => {
                 <h2 className="font-display text-2xl font-bold text-foreground mb-6">Create your account</h2>
                 <div>
                   <label className="text-sm font-medium text-foreground mb-1.5 block">Full Name</label>
-                  <input placeholder="John Doe" className="input-dark w-full" />
+                  <input name="fullName" value={formData.fullName} onChange={handleInputChange} placeholder="John Doe" className="input-dark w-full" />
                 </div>
                 <div>
                   <label className="text-sm font-medium text-foreground mb-1.5 block">Email</label>
-                  <input type="email" placeholder="you@example.com" className="input-dark w-full" />
+                  <input name="email" value={formData.email} onChange={handleInputChange} type="email" placeholder="you@example.com" className="input-dark w-full" />
                 </div>
                 <div>
                   <label className="text-sm font-medium text-foreground mb-1.5 block">Phone Number</label>
-                  <input placeholder="+255 7XX XXX XXX" className="input-dark w-full" />
+                  <input name="phone" value={formData.phone} onChange={handleInputChange} placeholder="+255 7XX XXX XXX" className="input-dark w-full" />
                 </div>
                 <div>
                   <label className="text-sm font-medium text-foreground mb-1.5 block">Password</label>
                   <div className="relative">
-                    <input type={showPass ? 'text' : 'password'} placeholder="••••••••" className="input-dark w-full pr-10" />
+                    <input name="password" value={formData.password} onChange={handleInputChange} type={showPass ? 'text' : 'password'} placeholder="••••••••" className="input-dark w-full pr-10" />
                     <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
                       {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
@@ -90,17 +154,17 @@ const Register = () => {
                 <h2 className="font-display text-2xl font-bold text-foreground mb-6">Business info</h2>
                 <div>
                   <label className="text-sm font-medium text-foreground mb-1.5 block">Business / Hotspot Name</label>
-                  <input placeholder='e.g. "Mama Ntilie WiFi"' className="input-dark w-full" />
+                  <input name="businessName" value={formData.businessName} onChange={handleInputChange} placeholder='e.g. "Mama Ntilie WiFi"' className="input-dark w-full" />
                 </div>
                 <div>
                   <label className="text-sm font-medium text-foreground mb-1.5 block">Country</label>
-                  <select className="input-dark w-full">
+                  <select name="country" value={formData.country} onChange={handleInputChange} className="input-dark w-full">
                     <option>Tanzania</option><option>Kenya</option><option>Uganda</option>
                   </select>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-foreground mb-1.5 block">City / Region</label>
-                  <input placeholder="Arusha" className="input-dark w-full" />
+                  <input name="city" value={formData.city} onChange={handleInputChange} placeholder="Arusha" className="input-dark w-full" />
                 </div>
               </motion.div>
             )}
@@ -163,9 +227,16 @@ const Register = () => {
             )}
             <button
               onClick={() => step < 3 ? setStep(step + 1) : handleFinish()}
-              className="flex-1 gradient-bg text-primary-foreground py-3 rounded-xl font-display font-semibold hover:opacity-90 transition-all hover:scale-[1.02] flex items-center justify-center gap-1"
+              disabled={loading}
+              className="flex-1 gradient-bg text-primary-foreground py-3 rounded-xl font-display font-semibold hover:opacity-90 transition-all hover:scale-[1.02] flex items-center justify-center gap-1 disabled:opacity-50 disabled:scale-100"
             >
-              {step < 3 ? <>Next <ChevronRight className="w-4 h-4" /></> : 'Create My Account'}
+              {loading ? (
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : step < 3 ? (
+                <>Next <ChevronRight className="w-4 h-4" /></>
+              ) : (
+                'Create My Account'
+              )}
             </button>
           </div>
         </div>
